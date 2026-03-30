@@ -62,8 +62,8 @@ data class Recipe(
     val name: String,
     val description: String,
     val ingredients: List<String>,
-    val prepTime: Int, // minutes
-    val difficulty: String, // Easy, Medium, Hard
+    val prepTime: Int, 
+    val difficulty: String, 
     val category: String,
     val status: RecipeStatus = RecipeStatus.WANT_TO_COOK
 )
