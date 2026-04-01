@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,13 +59,15 @@ class MainActivity : ComponentActivity() {
 
 enum class RecipeStatus { WANT_TO_COOK, COOKING, COOKED }
 
+enum class RecipeDifficulty { EASY, MEDIUM, HARD }
+
 data class Recipe(
     val id: Int,
     val name: String,
     val description: String,
     val ingredients: List<String>,
-    val prepTime: Int, 
-    val difficulty: String, 
+    val prepTime: Int,
+    val difficulty: RecipeDifficulty,
     val category: String,
     val status: RecipeStatus = RecipeStatus.WANT_TO_COOK
 )
@@ -100,30 +104,31 @@ data class Statistics(
 )
 
 class RecipeViewModel : ViewModel() {
-    private var _recipes = mutableStateOf(getSampleRecipes())
-    val uiState = mutableStateOf(RecipeListUiState(recipes = _recipes.value))
+    var uiState by mutableStateOf(RecipeListUiState(recipes = getSampleRecipes()))
+        private set
 
     fun onSearchChange(query: String) {
-        uiState.value = uiState.value.copy(searchQuery = query)
+        uiState = uiState.copy(searchQuery = query)
     }
 
     fun onFilterChange(filter: RecipeStatus?) {
-        uiState.value = uiState.value.copy(selectedFilter = filter)
+        uiState = uiState.copy(selectedFilter = filter)
     }
 
     fun updateRecipeStatus(recipeId: Int, newStatus: RecipeStatus) {
-        _recipes.value = _recipes.value.map { recipe ->
-            if (recipe.id == recipeId) {
-                recipe.copy(status = newStatus)
-            } else {
-                recipe
+        uiState = uiState.copy(
+            recipes = uiState.recipes.map { recipe ->
+                if (recipe.id == recipeId) {
+                    recipe.copy(status = newStatus)
+                } else {
+                    recipe
+                }
             }
-        }
-        uiState.value = uiState.value.copy(recipes = _recipes.value)
+        )
     }
 
     fun getRecipeById(id: Int): Recipe? {
-        return _recipes.value.find { it.id == id }
+        return uiState.recipes.find { it.id == id }
     }
 }
 
@@ -138,7 +143,7 @@ fun RecipeApp() {
     ) {
         composable("recipe_list") {
             RecipeListScreen(
-                uiState = viewModel.uiState.value,
+                uiState = viewModel.uiState,
                 onSearchChange = viewModel::onSearchChange,
                 onFilterChange = viewModel::onFilterChange,
                 onRecipeClick = { recipeId ->
@@ -150,7 +155,9 @@ fun RecipeApp() {
             route = "recipe_detail/{recipeId}",
             arguments = listOf(navArgument("recipeId") { type = NavType.IntType })
         ) { backStackEntry ->
-            val recipeId = backStackEntry.arguments?.getInt("recipeId") ?: return@composable
+            val recipeId = requireNotNull(backStackEntry.arguments?.getInt("recipeId")) {
+                "ID рецепта не найден"
+            }
             val recipe = viewModel.getRecipeById(recipeId)
             if (recipe != null) {
                 RecipeDetailScreen(
@@ -180,13 +187,13 @@ fun RecipeListScreen(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = onSearchChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth(),
                 label = { Text("Поиск рецептов...") },
                 singleLine = true
             )
@@ -196,14 +203,14 @@ fun RecipeListScreen(
             FilterTabs(
                 selectedFilter = uiState.selectedFilter,
                 onFilterChange = onFilterChange,
-                modifier = Modifier.padding(horizontal = 16.dp)
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             StatisticsBlock(
                 statistics = uiState.statistics,
-                modifier = Modifier.padding(horizontal = 16.dp)
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -346,6 +353,7 @@ fun RecipeDetailScreen(
     ) { innerPadding ->
         Column(
             modifier = Modifier
+                .verticalScroll(rememberScrollState())
                 .padding(innerPadding)
                 .fillMaxSize()
                 .padding(16.dp),
@@ -431,12 +439,11 @@ fun getStatusText(status: RecipeStatus): String {
     }
 }
 
-fun getDifficultyText(difficulty: String): String {
+fun getDifficultyText(difficulty: RecipeDifficulty): String {
     return when (difficulty) {
-        "Easy" -> "Легко"
-        "Medium" -> "Средне"
-        "Hard" -> "Сложно"
-        else -> difficulty
+        RecipeDifficulty.EASY -> "Легко"
+        RecipeDifficulty.MEDIUM -> "Средне"
+        RecipeDifficulty.HARD -> "Сложно"
     }
 }
 
@@ -458,7 +465,7 @@ fun getSampleRecipes(): List<Recipe> {
                 "Зелень"
             ),
             prepTime = 120,
-            difficulty = "Medium",
+            difficulty = RecipeDifficulty.MEDIUM,
             category = "Супы",
             status = RecipeStatus.WANT_TO_COOK
         ),
@@ -477,7 +484,7 @@ fun getSampleRecipes(): List<Recipe> {
                 "Соус Цезарь"
             ),
             prepTime = 30,
-            difficulty = "Easy",
+            difficulty = RecipeDifficulty.EASY,
             category = "Салаты",
             status = RecipeStatus.COOKING
         ),
@@ -494,7 +501,7 @@ fun getSampleRecipes(): List<Recipe> {
                 "Растительное масло для жарки"
             ),
             prepTime = 25,
-            difficulty = "Easy",
+            difficulty = RecipeDifficulty.EASY,
             category = "Завтраки",
             status = RecipeStatus.COOKED
         ),
@@ -513,7 +520,7 @@ fun getSampleRecipes(): List<Recipe> {
                 "Соль, перец"
             ),
             prepTime = 90,
-            difficulty = "Medium",
+            difficulty = RecipeDifficulty.MEDIUM,
             category = "Основные блюда",
             status = RecipeStatus.WANT_TO_COOK
         ),
@@ -532,7 +539,7 @@ fun getSampleRecipes(): List<Recipe> {
                 "Лук зеленый"
             ),
             prepTime = 45,
-            difficulty = "Easy",
+            difficulty = RecipeDifficulty.EASY,
             category = "Салаты",
             status = RecipeStatus.COOKING
         ),
@@ -551,7 +558,7 @@ fun getSampleRecipes(): List<Recipe> {
                 "Сметана для подачи"
             ),
             prepTime = 100,
-            difficulty = "Medium",
+            difficulty = RecipeDifficulty.MEDIUM,
             category = "Супы",
             status = RecipeStatus.COOKED
         ),
@@ -565,7 +572,7 @@ fun getSampleRecipes(): List<Recipe> {
                 "Сахарная пудра для посыпки"
             ),
             prepTime = 180,
-            difficulty = "Hard",
+            difficulty = RecipeDifficulty.HARD,
             category = "Десерты",
             status = RecipeStatus.WANT_TO_COOK
         ),
@@ -584,7 +591,7 @@ fun getSampleRecipes(): List<Recipe> {
                 "Орегано"
             ),
             prepTime = 15,
-            difficulty = "Easy",
+            difficulty = RecipeDifficulty.EASY,
             category = "Салаты",
             status = RecipeStatus.COOKED
         )
